@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
  * @Date: Created in 16:04 17/12/6
  */
 @RestController
-public class HelloController {
+public class ServiceRegistryController {
     @RequestMapping(method = RequestMethod.GET, path = "/hello")
     @ServiceName("helloService")
     public String hello() {
