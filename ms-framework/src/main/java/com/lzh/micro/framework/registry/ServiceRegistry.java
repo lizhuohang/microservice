@@ -32,13 +32,13 @@ public class ServiceRegistry implements ApplicationListener<ContextRefreshedEven
     private static CountDownLatch latch = new CountDownLatch(1);
     private ZooKeeper zk;
 
-    @Value("${msa.registry.zk.address}")
+    @Value("${ms.registry.zk.address}")
     private String zkAddress;
 
-    @Value("${msa.registry.zk.timeout}")
+    @Value("${ms.registry.zk.timeout}")
     private int zkTimeout;
 
-    @Value("${msa.registry.zk.registry.path}")
+    @Value("${ms.registry.zk.registry.path}")
     private String registryPath;
 
     /**
@@ -50,7 +50,7 @@ public class ServiceRegistry implements ApplicationListener<ContextRefreshedEven
      * 4. ...
      * 端口可以直接使用业务代码中的配置文件里面的端口号
      */
-    @Value("${msa.registry.zk.registry.serviceAddress}")
+    @Value("${ms.registry.zk.registry.serviceAddress}")
     private String serviceAddress;
 
     public void process(WatchedEvent watchedEvent) {
