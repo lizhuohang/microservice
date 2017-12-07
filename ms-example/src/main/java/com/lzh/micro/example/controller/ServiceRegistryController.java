@@ -21,7 +21,7 @@ public class ServiceRegistryController {
     }
 
 
-    @RequestMapping(method = RequestMethod.GET, path = "/hello1")
+    @RequestMapping(method = RequestMethod.GET, path = "")
     @ServiceName("helloService")
     public String hello1() {
         return "Hello1";
