@@ -8,11 +8,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * @Author: lizhuohang
- *
  * @Date: Created in 16:04 17/12/6
+ * 测试服务注册controller
  */
 @RestController
-@UpperServiceName({"test1","upper1","hello1"})
+@UpperServiceName({"test1", "upper1", "hello1"})
 public class ServiceRegistryController {
     @RequestMapping(method = RequestMethod.GET, path = "/hello")
     @ServiceName("helloService")

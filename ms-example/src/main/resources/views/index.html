@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8"/>
+	<meta name="viewport"
+		  content="initial-scale=1.0,maximum-scale=1.0,minimum-scale=1.0,user-scalable=0,width=device-width"/>
+	<meta name="format-detection" content="telephone=no"/>
+	<meta name="format-detection" content="email=no"/>
+	<title>API GateWay Test</title>
+
+	<link rel="stylesheet" href="/css/pc_common.css"/>
+	<link rel="stylesheet" href="/css/index.css"/>
+</head>
+<body>
+<script src="/js/jquery-2.1.1.min.js"></script>
+<br/>
+<br/>
+<br/>
+<em class="name">serviceName : </em>
+<input type="text" id="serviceName" value="helloService"/>
+<br/>
+<br/>
+<em class="name">url : </em>
+<input type="text" id="url" value="http://127.0.0.1:1234"/>
+<br/>
+<input type="button" id="submit" value="提交"/>
+<p id="show">这里会展示结果哦</p>
+<script>
+    $(function () {
+
+        $("#submit").bind('click', function () {
+            var serviceName = $("#serviceName").val();
+            var url = $("#url").val();
+
+            if (!url || !serviceName) {
+                alert("请输入内容");
+                return;
+            }
+
+            send(url, serviceName, function (data) {
+                $("#show").text(data)
+            })
+        });
+        function send(url, serviceName, callback) {
+            $.ajax({
+                method: 'GET',
+                url: url,
+                headers: {
+                    'Service-Name': serviceName
+                },
+                success: function (data) {
+                    console.log(JSON.stringify(data));
+                    callback(data);
+                }
+            });
+        };
+    });
+</script>
+</body>
+</html>
