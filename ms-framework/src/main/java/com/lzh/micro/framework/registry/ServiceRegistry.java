@@ -1,6 +1,8 @@
 package com.lzh.micro.framework.registry;
 
 import com.lzh.micro.framework.annotation.ServiceName;
+import com.lzh.micro.framework.annotation.UpperServiceName;
+import org.apache.commons.lang.StringUtils;
 import org.apache.zookeeper.CreateMode;
 import org.apache.zookeeper.WatchedEvent;
 import org.apache.zookeeper.Watcher;
@@ -16,12 +18,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
 
 import java.lang.reflect.Method;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 /**
  * @Author: lizhuohang
- *
  * @Date: Created in 17:28 17/12/5
  */
 @Aspect
@@ -59,6 +63,82 @@ public class ServiceRegistry implements ApplicationListener<ContextRefreshedEven
         }
     }
 
+    /**
+     * 基于类注解的实现
+     *
+     * @param contextRefreshedEvent
+     */
+    public void onApplicationEvent(ContextRefreshedEvent contextRefreshedEvent) {
+        Set<String> names = new HashSet<>();
+        Map<String, Object> claBeans = contextRefreshedEvent.getApplicationContext()
+                .getBeansWithAnnotation(UpperServiceName.class);
+        names.addAll(getClassNames(claBeans));
+
+        Map<String, Object> methBeans = contextRefreshedEvent.getApplicationContext()
+                .getBeansWithAnnotation(Controller.class);
+        names.addAll(getMethodNames(methBeans));
+
+        initZk();
+        Iterator<String> iterator = names.iterator();
+
+        while (iterator.hasNext()) {
+            String serviceName = iterator.next();
+            if (StringUtils.isBlank(serviceName)) {
+                continue;
+            }
+            register(serviceName, serviceAddress);
+        }
+    }
+
+    /**
+     * 基于方法注解的实现
+     *
+     * @param beans 具有服务注册方法注解的类
+     */
+    private Set<String> getMethodNames(Map<String, Object> beans) {
+        Set<String> set = new HashSet<>();
+        for (String key : beans.keySet()) {
+            Class<?> serviceClass = beans.get(key).getClass();
+            Method[] methods = serviceClass.getMethods();
+            if (methods == null) {
+                continue;
+            }
+            for (int i = 0; i < methods.length; i++) {
+                if (methods[i].isAnnotationPresent(ServiceName.class)) {
+                    String serviceName = methods[i].getAnnotation(ServiceName.class).value();
+                    if (serviceName == null || serviceName.trim().isEmpty()) {
+                        continue;
+                    }
+                    set.add(serviceName);
+                }
+            }
+        }
+        return set;
+    }
+
+    /**
+     * 基于类注解的实现
+     *
+     * @param beans 具有服务注册注解的类
+     */
+    private Set<String> getClassNames(Map<String, Object> beans) {
+        Set<String> set = new HashSet<>();
+        for (String key : beans.keySet()) {
+            Class<?> serviceClass = beans.get(key).getClass();
+            String[] serviceName = serviceClass.getAnnotation(UpperServiceName.class).value();
+            if (serviceName == null || serviceName.length == 0) {
+                continue;
+            }
+            for (int i = 0; i < serviceName.length; i++) {
+                set.add(serviceName[i]);
+            }
+        }
+        return set;
+    }
+
+    /**
+     * 初始化zk对象
+     */
     private synchronized void initZk() {
         if (zk != null) {
             return;
@@ -72,28 +152,13 @@ public class ServiceRegistry implements ApplicationListener<ContextRefreshedEven
         }
     }
 
-    public void onApplicationEvent(ContextRefreshedEvent contextRefreshedEvent) {
-        Map<String, Object> beans = contextRefreshedEvent.getApplicationContext()
-                .getBeansWithAnnotation(Controller.class);
-        initZk();
-        for (String key : beans.keySet()) {
-            Class<?> serviceClass = beans.get(key).getClass();
-            Method[] methods = serviceClass.getMethods();
-            if (methods == null) {
-                continue;
-            }
-            for (int i = 0; i < methods.length; i++) {
-                if (methods[i].isAnnotationPresent(ServiceName.class)) {
-                    String serviceName = methods[i].getAnnotation(ServiceName.class).value();
-                    if (serviceName == null || serviceName.trim().isEmpty()) {
-                        continue;
-                    }
-                    register(serviceName, serviceAddress);
-                }
-            }
-        }
-    }
 
+    /**
+     * 将信息注册到zookeeper
+     *
+     * @param serviceName
+     * @param serviceAddress
+     */
     private void register(String serviceName, String serviceAddress) {
         try {
             // 创建根节点
