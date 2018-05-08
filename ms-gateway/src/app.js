@@ -48,47 +48,145 @@ app.use(function (req, res, next) {
         res.end();
         return;
     }
-    // 获取服务路径
-    var servicePath = REGISTRY_ROOT + "/" + serviceName;
-    console.log('servicePath : %s', servicePath);
-    zk.getChildren(servicePath, function (error, addressNodes) {
-        if (error) {
-            console.log(error.stack);
-            res.end();
-            return;
-        }
-        var size = addressNodes.length;
-        if (size == 0) {
-            console.log('address node is not exist');
-            res.end();
-            return;
-        }
 
-        // 生成地址路径
-        var addressPath = servicePath + "/";
-        if (size == 1) {
-            // 若只有一个地址，则获取该地址
-            addressPath += addressNodes[0];
-        } else {
-            // 若存在多个地址，随机选取一个
-            addressPath += addressNodes[parseInt(Math.random() * size)];
-        }
-        console.log('addressPath : %s', addressPath);
-        // 获取服务地址
-        zk.getData(addressPath, function (error, serviceAddress) {
-            if (!serviceAddress) {
-                console.log('service address is not exist');
-                res.end();
-                return;
-            }
-            console.log('service address: %s', serviceAddress);
-            proxy.web(req, res, {
-                target: 'http://' + serviceAddress
-            });
-        });
-    });
+    main(serviceName, req, res);
+
+    // 获取服务路径
+    // var servicePath = REGISTRY_ROOT + "/" + serviceName;
+    // console.log('servicePath : %s', servicePath);
+    //
+    // zk.getChildren(servicePath, function (error, addressNodes) {
+    //     if (error) {
+    //         console.log(error.stack);
+    //         res.end();
+    //         return;
+    //     }
+    //     var size = addressNodes.length;
+    //     if (size == 0) {
+    //         console.log('address node is not exist');
+    //         res.end();
+    //         return;
+    //     }
+    //
+    //     // 生成地址路径
+    //     var addressPath = servicePath + "/";
+    //     if (size == 1) {
+    //         // 若只有一个地址，则获取该地址
+    //         addressPath += addressNodes[0];
+    //     } else {
+    //         // 若存在多个地址，随机选取一个
+    //         addressPath += addressNodes[parseInt(Math.random() * size)];
+    //     }
+    //     console.log('addressPath : %s', addressPath);
+    //     // 获取服务地址
+    //     zk.getData(addressPath, function (error, serviceAddress) {
+    //         if (!serviceAddress) {
+    //             console.log('service address is not exist');
+    //             res.end();
+    //             return;
+    //         }
+    //         console.log('service address: %s', serviceAddress);
+    //         proxy.web(req, res, {
+    //             target: 'http://' + serviceAddress
+    //         });
+    //     });
+    // });
 });
 
 app.listen(PORT, function () {
     console.log('server is running at %d', PORT);
 });
+
+// 获取服务地址的主要功能实现
+function main(serviceName, req, res) {
+    var addressList = cache[serviceName];
+    // 缓存中存在serviceName对应的地址信息
+    if (addressList) {
+        var serviceAddress;
+        var addressSize = addressList.length;
+        if (addressSize == 1) {
+            // 若只有一个地址，则获取该地址
+            serviceAddress = addressList[0];
+        } else {
+            // 若存在多个地址，随机选取一个
+            serviceAddress = addressList[parseInt(Math.random() * addressSize)];
+        }
+        doProxy(serviceAddress, req, res);
+        return;
+    }
+
+    // 缓存中不存在serviceName对应的地址信息
+    refreshInfo(serviceName, req, res);
+}
+
+// 通过serviceName获取到servicePath
+function getPath(serviceName) {
+    return REGISTRY_ROOT + "/" + serviceName;
+}
+
+// 通过servicePath获取到serviceName
+function getServiceName(servicePath) {
+    return servicePath.substring(servicePath.lastIndexOf("/") + 1, servicePath.length);
+}
+
+// 统一代理功能
+function doProxy(serviceAddress, req, res) {
+    console.log('proxy service address: %s', serviceAddress + "/" + req.originalUrl);
+    proxy.web(req, res, {
+        target: 'http://' + serviceAddress
+    });
+}
+
+// zookeeper路径下子节点变动监听器
+function childrenChange(event) {
+    var servicePath = event.path;
+    var serviceName = getServiceName(servicePath);
+
+    refreshInfo(serviceName);
+
+}
+
+// 从zk上获取信息的逻辑实现
+function refreshInfo(serviceName, req, res) {
+    cache[serviceName] = [];
+    var servicePath = getPath(serviceName)
+    console.log('zookeeper servicePath : %s', servicePath);
+    zk.getChildren(servicePath, childrenChange, function (error, addressNodes) {
+        if (error) {
+            console.log(error.stack);
+            if (res) {
+                res.end();
+            }
+            return;
+        }
+        var size = addressNodes.length;
+        if (size == 0) {
+            console.log('address node is not exist');
+            if (res) {
+                res.end();
+            }
+            return;
+        }
+
+        var hasProxy = false;
+        for (var i = 0; i < size; i++) {
+            var addressPath = servicePath + "/" + addressNodes[i];
+            console.log('addressPath : %s', addressPath);
+            // 获取服务地址
+            zk.getData(addressPath, function (error, serviceAddress) {
+                if (!serviceAddress) {
+                    console.log('service address is not exist');
+                    return;
+                }
+                console.log('service address: %s', serviceAddress);
+                cache[serviceName].push(serviceAddress);
+                console.log("cache[%s] : ", serviceName);
+                console.log(cache[serviceName]);
+                if (res && !hasProxy) {
+                    hasProxy = true;
+                    doProxy(serviceAddress, req, res);
+                }
+            });
+        }
+    });
+}
